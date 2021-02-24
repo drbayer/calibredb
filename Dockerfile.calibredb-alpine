@@ -1,0 +1,58 @@
+# for some reason it breaks with alpine:3.12
+FROM alpine:3.11
+LABEL maintainer="drbayer@eternalstench.com"
+
+ENV GLIBC_VERSION=2.31-r0 \
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/calibre/lib \
+    PATH=$PATH:/opt/calibre/bin \
+    CALIBRE_INSTALLER_SOURCE_CODE_URL=https://raw.githubusercontent.com/kovidgoyal/calibre/master/setup/linux-installer.py 
+
+# Download and install glibc. I hate doing this just for a cli tool, but one does what one must.
+RUN wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+    wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
+    wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-bin-${GLIBC_VERSION}.apk && \
+    apk add glibc-${GLIBC_VERSION}.apk glibc-bin-${GLIBC_VERSION}.apk && \
+    /usr/glibc-compat/sbin/ldconfig /lib/usr/glibc-compat/lib && \
+    echo 'hosts: files mdns4_minimal [NOTFOUND=return] dns mdns4' >> /etc/nsswitch.conf && \
+    rm -rf glibc-${GLIBC_VERSION}.apk glibc-bin-${GLIBC_VERSION}.apk /var/cache/apk/*
+  
+# Download and install calibre and dependencies
+RUN apk update && \
+    apk add --no-cache --upgrade \
+    bash \
+    ca-certificates \
+    exiftool \
+    gcc6 \
+    inotify-tools \
+    jq \
+    mesa-gl \
+    nss \
+    perl-archive-zip \
+    python \
+    qt5-qtbase-x11 \
+    sqlite \
+    wget \
+    xdg-utils \
+    xz && \
+    wget -O- ${CALIBRE_INSTALLER_SOURCE_CODE_URL} | python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main(install_dir='/opt', isolated=True)" && \
+    rm -rf /tmp/calibre-installer-cache && \
+    mkdir /config && \
+    mkdir /books && \
+    mkdir /users && \
+    mkdir /addbooks
+
+
+# Add scripts for standard operation
+ADD entrypoint.sh /opt/calibre/bin/
+ADD add_books.sh /opt/calibre/bin/
+
+RUN chmod +x /opt/calibre/bin/entrypoint.sh && \
+    chmod +x /opt/calibre/bin/add_books.sh
+	
+# Volumes
+    
+VOLUME ["/books", "/addbooks"]
+    
+ENTRYPOINT ["/opt/calibre/bin/entrypoint.sh"]
+CMD ["calibredb"]
+

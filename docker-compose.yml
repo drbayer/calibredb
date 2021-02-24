@@ -1,0 +1,27 @@
+version: '3'
+
+networks:
+    default:
+        external:
+            name: traefik
+
+services:
+    calibre-web:
+        image: linuxserver/calibre-web
+        environment:
+            - DOCKER_MODS=linuxserver/calibre-web:calibre
+        volumes: 
+            - ../books:/books
+            - ../data:/config
+        labels:
+            - "traefik.http.services.calibre-web.loadbalancer.server.port=8083"
+            - "traefik.http.routers.calibre-web.rule=Host(`calibre-web.eternalstench.net`)"
+        restart: unless-stopped
+    calibredb:
+        image: drbayer/calibredb:latest
+        env_file: docker-compose.env
+        volumes:
+            - ../books:/books
+            - ../addbooks:/addbooks
+        restart: unless-stopped
+
